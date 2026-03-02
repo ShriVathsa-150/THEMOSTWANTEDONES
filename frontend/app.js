@@ -1,94 +1,72 @@
-const chatBox = document.getElementById('chat-box');
-const userInput = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-
-// Generate a random session ID for this browser tab
-const sessionId = Math.random().toString(36).substring(7);
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('send-btn').onclick = sendMessage;
+    document.getElementById('user-input').onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+    loadHistory();
+});
 
 async function sendMessage() {
-    const message = userInput.value.trim();
-    if (!message) return;
+    const input = document.getElementById('user-input');
+    const text = input.value.trim();
+    if (!text) return;
 
-    // 1. Add User Message to UI
-    appendMessage(message, 'user-message');
-    userInput.value = '';
+    appendMsg('user', text);
+    input.value = '';
     
-    // 2. Show Loading
-    const loadingId = appendLoading();
-    scrollToBottom();
+    const typingId = 'typing-' + Date.now();
+    appendMsg('assistant', 'Analyzing prices and availability...', [], typingId);
 
     try {
-        // 3. Call Backend
-        const response = await fetch('http://127.0.0.1:8000/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, session_id: sessionId })
-        });
+        const res = await fetch(`/chat?msg=${encodeURIComponent(text)}`, { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById(typingId).remove();
 
-        const data = await response.json();
+        // FIX: Defensive checks for 'reply' keys
+        const aiReply = data.reply || data.response || "Here are some recommendations:";
+        const products = data.products || [];
 
-        // 4. Remove Loading
-        document.getElementById(loadingId).remove();
-
-        // 5. Display AI Text Reply
-        appendMessage(data.reply, 'bot-message');
-
-        // 6. Display Products if available
-        if (data.products && data.products.length > 0) {
-            appendProductCards(data.products);
-        }
-
-    } catch (error) {
-        document.getElementById(loadingId).remove();
-        appendMessage("Sorry, I'm having trouble connecting to the server.", 'bot-message');
-        console.error(error);
+        appendMsg('assistant', aiReply, products);
+        loadHistory();
+    } catch (err) {
+        document.getElementById(typingId).innerText = "Server Error. Check your Groq API Key.";
     }
+}
+
+function appendMsg(role, text, products = [], id = null) {
+    const win = document.getElementById('chat-window');
+    const welcome = document.getElementById('welcome-screen');
+    if (welcome) welcome.style.display = 'none';
+
+    const div = document.createElement('div');
+    div.className = `chat-bubble ${role}`;
+    if(id) div.id = id;
+
+    let html = `<p>${text}</p>`;
     
-    scrollToBottom();
+    if (products.length > 0) {
+        html += `<div class="product-grid">`;
+        products.forEach(p => {
+            // REDIRECTION: Creates a clickable search link
+            const url = p.url || `https://www.google.com/search?q=${encodeURIComponent(p.name)}+${p.platform}`;
+            html += `
+                <div class="product-card" onclick="window.open('${url}', '_blank')">
+                    <strong>${p.name}</strong>
+                    <span class="price-tag">${p.price_range || 'Check Price'}</span>
+                    <small style="color:#10b981">${p.platform}</small>
+                    <small class="click-hint">Click to View Product →</small>
+                </div>`;
+        });
+        html += `</div>`;
+    }
+
+    div.innerHTML = html;
+    win.appendChild(div);
+    win.scrollTop = win.scrollHeight;
 }
 
-// UI Helper Functions
-function appendMessage(text, className) {
-    const div = document.createElement('div');
-    div.className = `message ${className}`;
-    div.innerText = text;
-    chatBox.appendChild(div);
+async function loadHistory() {
+    const res = await fetch('/history');
+    const history = await res.json();
+    const list = document.getElementById('history-list');
+    list.innerHTML = history.slice(-6).reverse().map(h => `<div class="history-item">${h.message}</div>`).join('');
 }
-
-function appendLoading() {
-    const id = 'loading-' + Date.now();
-    const div = document.createElement('div');
-    div.id = id;
-    div.className = 'message bot-message';
-    div.innerText = 'Thinking...';
-    chatBox.appendChild(div);
-    return id;
-}
-
-function appendProductCards(products) {
-    const container = document.createElement('div');
-    container.className = 'products-container';
-
-    products.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'product-card';
-        card.innerHTML = `
-            <div class="p-name">${p.name}</div>
-            <div class="p-price">${p.estimated_price}</div>
-            <div class="p-reason">"${p.why_recommended}"</div>
-            <div class="p-platform">Available on: ${p.platform}</div>
-        `;
-        container.appendChild(card);
-    });
-
-    chatBox.appendChild(container);
-}
-
-function scrollToBottom() {
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-// Allow "Enter" key to send
-userInput.addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') sendMessage();
-});
