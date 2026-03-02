@@ -2,36 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShopSage - AI Shopping Assistant</title>
+    <title>ShopSage | Smart Shopping</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body>
-
-    <div class="chat-container">
-        <header class="chat-header">
-            <h1>🛍️ ShopSage AI</h1>
-            <p>Your intelligent shopping companion</p>
-        </header>
-
-        <div id="chat-box" class="chat-box">
-            <div class="message bot-message">
-                Hello! I'm ShopSage. Tell me what you're looking for, and I'll find the best market picks for you.
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">ShopSage</div>
+            <button class="history-item" onclick="location.reload()" style="background: var(--glass); text-align:center;">+ New Session</button>
+            <div id="history-list" style="margin-top:20px;"></div>
+        </aside>
+        <main class="main-content">
+            <div id="chat-window" class="chat-window">
+                <div id="welcome-screen" style="text-align:center; margin-top:20vh;">
+                    <h1 style="font-size:3.5rem; margin-bottom:1rem;">ShopSage</h1>
+                    <p style="color:var(--text-muted); font-size:1.2rem;">Your intelligent guide to the best products and prices.</p>
+                </div>
             </div>
-        </div>
-
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="E.g., Suggest a gaming laptop under 80k..." autocomplete="off">
-            <button id="send-btn" onclick="sendMessage()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
-        </div>
+            <div class="input-section">
+                <div class="input-wrapper">
+                    <input type="text" id="user-input" placeholder="Search for products, compare prices..." autocomplete="off">
+                    <button id="send-btn">Send</button>
+                </div>
+            </div>
+        </main>
     </div>
-
     <script src="app.js"></script>
 </body>
 </html>
