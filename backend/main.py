@@ -1,72 +1,57 @@
-import os
-import json
-import time
+import os, json
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
 
-# --- LOAD CONFIG ---
-env_path = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=env_path)
+# --- PATHS & CONFIG ---
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+load_dotenv(dotenv_path=BASE_DIR / "backend" / ".env")
 
-GROQ_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_KEY:
-    raise ValueError("GROQ_API_KEY not found in .env!")
-
-client = Groq(api_key=GROQ_KEY)
-MODEL_ID = "llama-3.3-70b-versatile" # High-performance free model
-
-app = FastAPI(title="ShopSage - Groq Ultra-Fast Edition")
+app = FastAPI()
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, 
+    allow_origins=["*"], 
+    allow_methods=["*"], 
+    allow_headers=["*"]
 )
 
-class ChatRequest(BaseModel):
-    message: str
-
-SYSTEM_PROMPT = """
-You are ShopSage, a witty shopping assistant. 
-Respond ONLY in JSON format:
-{
-  "reply": "your conversational advice here",
-  "products": [
-    {"name": "Product Name", "estimated_price": "₹XX,XXX", "platform": "Amazon", "why_recommended": "reason"}
-  ]
-}
-"""
+chat_history = []
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
-    # Try the request up to 3 times if rate limited
-    for attempt in range(3):
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": request.message}
-                ],
-                model=MODEL_ID,
-                response_format={"type": "json_object"}
-            )
-            
-            return json.loads(chat_completion.choices[0].message.content)
+async def chat(msg: str):
+    # Strict prompt to ensure valid JSON and clickable URLs
+    SYSTEM_PROMPT = (
+        "You are ShopSage, a professional shopping assistant. "
+        "Return ONLY a JSON object with: 'reply' (string) and 'products' (list). "
+        "For each product, include: 'name', 'price_range' (e.g. '₹45k - ₹50k'), "
+        "'platform' (e.g. 'Amazon'), and 'url' (a direct search link)."
+    )
+    
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": msg}
+            ],
+            response_format={"type": "json_object"}
+        )
+        data = json.loads(completion.choices[0].message.content)
+        
+        # Save to session history
+        chat_history.append({"message": msg, "reply": data.get('reply')})
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="AI Service Error")
 
-        except Exception as e:
-            # Handle the 429 "Rate Limit" error specifically
-            if "429" in str(e) and attempt < 2:
-                time.sleep(2) # Wait 2 seconds and try again
-                continue
-            print(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="The AI is a bit busy. Please try again in a few seconds.")
+@app.get("/history")
+def get_history():
+    return chat_history
 
-# Mount Frontend
-frontend_path = Path(__file__).parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
